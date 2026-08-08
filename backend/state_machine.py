@@ -4,14 +4,25 @@ Blocks 6 & 7 of the System Flow Architecture:
   6. Exercise State Machine
   7. Repetition Counter
 
-A rep only increments on a full state cycle (e.g. up -> down -> up for a
-squat/push-up, or down -> lockout for a deadlift). Each rep is also tagged
-"good" or "bad" depending on whether form validation failed at any point
-during that rep -- this is the "rigorous repetition counter that only
-increments when an exercise is performed within an acceptable scope of
-error" described in Section 1 of the proposal. Reps still count when form
-breaks (so the user sees their true total) but are logged separately as
-bad reps, with feedback on why.
+Generic across all 16 exercises in exercise_rules.EXERCISE_CONFIG via the
+"pattern" field:
+
+  "flexion"   -> rest state is "up" (large angle). Angle drops below
+                 low_threshold+tolerance to enter "down"; rising back above
+                 high_threshold completes the rep and returns to "up".
+                 (squat, push-up, lunge, bicep curl, sit-up, high knees,
+                  mountain climber, tricep dip, pull-up, bicycle crunch)
+
+  "extension" -> rest state is "down" (small angle). Angle rises above
+                 high_threshold to enter "up"/"lockout"; dropping back below
+                 low_threshold completes the rep and returns to "down".
+                 (deadlift, shoulder press, jumping jack, lateral raise,
+                  glute bridge, calf raise)
+
+A rep only counts as "good" if form validation passed on every frame of
+that rep -- the "rigorous repetition counter" described in the proposal.
+Reps still increment on bad form (so the total is accurate) but are
+tagged separately with the feedback that caused the flag.
 """
 
 from exercise_rules import EXERCISE_CONFIG
@@ -22,7 +33,9 @@ class ExerciseStateMachine:
         if exercise not in EXERCISE_CONFIG:
             raise ValueError(f"Unknown exercise: {exercise}")
         self.exercise = exercise
-        self.state = "up"  # up / down / lockout (deadlift only)
+        self.pattern = EXERCISE_CONFIG[exercise]["pattern"]
+        # "flexion" rests at "up"; "extension" rests at "down"
+        self.state = "up" if self.pattern == "flexion" else "down"
         self.rep_count = 0
         self.good_reps = 0
         self.bad_reps = 0
@@ -40,42 +53,39 @@ class ExerciseStateMachine:
     def update(self, primary_angle, form_ok, feedback):
         """
         Advance the state machine given the current primary joint angle and
-        the result of this frame's form validation.
-
-        Returns the (possibly updated) state string.
+        this frame's form-validation result. Returns the (possibly updated)
+        state string.
         """
+        if primary_angle is None:
+            return self.state
+
         config = EXERCISE_CONFIG[self.exercise]
         self.last_feedback = feedback
 
         if not form_ok:
             self.current_rep_clean = False
 
-        if self.exercise in ("squat", "pushup"):
-            down_thresh = config["down_threshold"] + config.get("tolerance", 0)
-            up_thresh = config["up_threshold"]
+        low = config["low_threshold"] + config.get("tolerance", 0)
+        high = config["high_threshold"]
 
-            if self.state == "up" and primary_angle <= down_thresh:
+        if self.pattern == "flexion":
+            if self.state == "up" and primary_angle <= low:
                 self.state = "down"
-            elif self.state == "down" and primary_angle >= up_thresh:
+            elif self.state == "down" and primary_angle >= high:
                 self.state = "up"
                 self._complete_rep()
 
-        elif self.exercise == "deadlift":
-            start_thresh = config["start_threshold"]
-            lockout_thresh = config["lockout_threshold"]
-
-            if self.state == "up" and primary_angle <= start_thresh:
-                self.state = "down"
-            elif self.state == "down" and primary_angle >= lockout_thresh:
-                self.state = "lockout"
+        elif self.pattern == "extension":
+            if self.state == "down" and primary_angle >= high:
+                self.state = "up"
                 self._complete_rep()
-            elif self.state == "lockout" and primary_angle <= start_thresh:
+            elif self.state == "up" and primary_angle <= low:
                 self.state = "down"
 
         return self.state
 
     def reset(self):
-        self.state = "up"
+        self.state = "up" if self.pattern == "flexion" else "down"
         self.rep_count = 0
         self.good_reps = 0
         self.bad_reps = 0

@@ -32,24 +32,34 @@ st.caption(
 
 # ---------------------------------------------------------------- Sidebar --
 st.sidebar.header("Controls")
+exercise_keys = list(EXERCISE_CONFIG.keys())
 exercise = st.sidebar.selectbox(
-    "Select Exercise", list(EXERCISE_CONFIG.keys()), format_func=str.title
+    "Select Exercise", exercise_keys,
+    format_func=lambda k: EXERCISE_CONFIG[k]["display_name"],
 )
 run = st.sidebar.checkbox("Start Camera")
 reset_btn = st.sidebar.button("Reset Counter")
 audio_on = st.sidebar.checkbox("Audio feedback (rep beep)", value=True)
 
 st.sidebar.markdown("---")
+config = EXERCISE_CONFIG[exercise]
+st.sidebar.markdown(f"**{config['display_name']} — scope of error**")
+tolerance = config.get("tolerance")
+tolerance_str = f" (±{tolerance}°)" if tolerance else ""
 st.sidebar.markdown(
-    "**Scope-of-error rules**\n\n"
-    + {
-        "squat": "- Knee angle < 90° (±10°) = down\n- Back must stay > 150° "
-                 "(shoulder-hip-knee)",
-        "pushup": "- Elbow angle ≤ 90° = down\n- Body line 180° (±15°)",
-        "deadlift": "- Hip angle ≥ 170° = lockout\n- Back monitored for "
-                    "rounding throughout the pull",
-    }[exercise]
+    f"- Pattern: `{config['pattern']}`\n"
+    f"- Trigger range: {config['low_threshold']}°{tolerance_str} – {config['high_threshold']}°"
 )
+if config["form_rules"]:
+    for rule in config["form_rules"]:
+        bound = []
+        if "min" in rule:
+            bound.append(f"min {rule['min']}°")
+        if "max" in rule:
+            bound.append(f"max {rule['max']}°")
+        st.sidebar.markdown(f"- {rule['message']} ({', '.join(bound)}, state: {rule['state']})")
+else:
+    st.sidebar.markdown("- No extra form checks for this exercise")
 
 # --------------------------------------------------------- Session state --
 if "state_machine" not in st.session_state or st.session_state.get("exercise") != exercise:
@@ -78,7 +88,8 @@ def draw_dashboard(frame, sm, feedback, form_ok):
     cv2.rectangle(overlay, (0, 0), (w, 95), (20, 20, 20), -1)
     frame = cv2.addWeighted(overlay, 0.6, frame, 0.4, 0)
 
-    cv2.putText(frame, f"Exercise: {sm.exercise.title()}", (15, 25),
+    display_name = EXERCISE_CONFIG[sm.exercise]["display_name"]
+    cv2.putText(frame, f"Exercise: {display_name}", (15, 25),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     cv2.putText(frame, f"Reps: {sm.rep_count}  (Good {sm.good_reps} / Bad {sm.bad_reps})",
                 (15, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)

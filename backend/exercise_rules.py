@@ -2,15 +2,25 @@
 exercise_rules.py
 Block 5 of the System Flow Architecture: Form Validation (Scope of Error Logic)
 
-Encodes the exercise-specific rules from Section 3.2 of the proposal:
+This is a config-driven system: adding a new exercise means adding one
+entry to EXERCISE_CONFIG, not writing new branching code. Each exercise
+declares:
 
-  Squat:    "down" state = knee angle < 90 deg (+/- 10 deg tolerance);
-            back must stay relatively straight (shoulder-hip-knee alignment).
-  Push-Up:  "down" state = elbow angle <= 90 deg;
-            body alignment (shoulder-hip-ankle) must stay near 180 deg (+/- 15 deg).
-  Deadlift: back-angle monitored throughout to prevent rounding;
-            tracked from initial pull (knee extension) to lockout (hip
-            extension approaching 180 deg).
+  - triads: named joint angles to compute (landmark triples)
+  - primary_angle: which named angle(s) drive the rep state machine
+                    (averaged left/right if both given)
+  - pattern:
+      "flexion"   -> angle DROPS during the active phase, then rises back
+                     up to complete the rep (squat, push-up, bicep curl...)
+      "extension" -> angle RISES during the active phase, then drops back
+                     down to complete the rep (jumping jack, glute bridge...)
+  - low_threshold / high_threshold / tolerance: the "scope of error" bounds
+    from Section 3.2 of the proposal
+  - form_rules: extra checks applied while in a given state, e.g. "back
+    must stay above 150 degrees while in the down position"
+
+state_machine.py consumes this config generically -- see that file for how
+`pattern` drives the up/down/lockout transitions.
 """
 
 import mediapipe as mp
@@ -19,45 +29,175 @@ from pose_utils import calculate_angle, get_landmark_xy
 mp_pose = mp.solutions.pose
 LM = mp_pose.PoseLandmark
 
+# Shorthand landmark triads reused across several exercises
+KNEE = lambda side: (getattr(LM, f"{side}_HIP"), getattr(LM, f"{side}_KNEE"), getattr(LM, f"{side}_ANKLE"))
+HIP = lambda side: (getattr(LM, f"{side}_SHOULDER"), getattr(LM, f"{side}_HIP"), getattr(LM, f"{side}_KNEE"))
+ELBOW = lambda side: (getattr(LM, f"{side}_SHOULDER"), getattr(LM, f"{side}_ELBOW"), getattr(LM, f"{side}_WRIST"))
+SHOULDER_ABD = lambda side: (getattr(LM, f"{side}_HIP"), getattr(LM, f"{side}_SHOULDER"), getattr(LM, f"{side}_ELBOW"))
+BODY_LINE = lambda side: (getattr(LM, f"{side}_SHOULDER"), getattr(LM, f"{side}_HIP"), getattr(LM, f"{side}_ANKLE"))
+ANKLE = lambda side: (getattr(LM, f"{side}_KNEE"), getattr(LM, f"{side}_ANKLE"), getattr(LM, f"{side}_FOOT_INDEX"))
+
+
+def _bilateral(fn):
+    """Build {'left': fn('LEFT'), 'right': fn('RIGHT')} triads."""
+    return {"left": fn("LEFT"), "right": fn("RIGHT")}
+
+
 EXERCISE_CONFIG = {
+
     "squat": {
-        "primary_joint": "knee",
-        "triads": {
-            "left_knee":  (LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
-            "right_knee": (LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
-            "left_back":  (LM.LEFT_SHOULDER, LM.LEFT_HIP, LM.LEFT_KNEE),
-            "right_back": (LM.RIGHT_SHOULDER, LM.RIGHT_HIP, LM.RIGHT_KNEE),
-        },
-        "down_threshold": 90,   # knee angle must drop below this
-        "tolerance": 10,        # +/- 10 deg scope of error
-        "up_threshold": 160,    # near-standing = "up" transition
-        "back_min_angle": 150,  # back must stay relatively straight in "down"
+        "display_name": "Squat",
+        "triads": {**_bilateral(KNEE), "back_left": HIP("LEFT"), "back_right": HIP("RIGHT")},
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 90, "tolerance": 10, "high_threshold": 160,
+        "form_rules": [
+            {"angle": ["back_left", "back_right"], "state": "down", "min": 150,
+             "message": "Keep your back straighter"},
+        ],
     },
+
     "pushup": {
-        "primary_joint": "elbow",
-        "triads": {
-            "left_elbow":  (LM.LEFT_SHOULDER, LM.LEFT_ELBOW, LM.LEFT_WRIST),
-            "right_elbow": (LM.RIGHT_SHOULDER, LM.RIGHT_ELBOW, LM.RIGHT_WRIST),
-            "left_body":   (LM.LEFT_SHOULDER, LM.LEFT_HIP, LM.LEFT_ANKLE),
-            "right_body":  (LM.RIGHT_SHOULDER, LM.RIGHT_HIP, LM.RIGHT_ANKLE),
-        },
-        "down_threshold": 90,   # elbow angle must reach <= this
-        "tolerance": 0,
-        "up_threshold": 160,
-        "body_line_target": 180,
-        "body_line_tolerance": 15,
+        "display_name": "Push-Up",
+        "triads": {**_bilateral(ELBOW), "line_left": BODY_LINE("LEFT"), "line_right": BODY_LINE("RIGHT")},
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 90, "tolerance": 0, "high_threshold": 160,
+        "form_rules": [
+            {"angle": ["line_left", "line_right"], "state": "down", "min": 165, "max": 195,
+             "message": "Keep your body in a straight line (avoid hip sag/pike)"},
+        ],
     },
+
     "deadlift": {
-        "primary_joint": "hip",
-        "triads": {
-            "left_hip":   (LM.LEFT_SHOULDER, LM.LEFT_HIP, LM.LEFT_KNEE),
-            "right_hip":  (LM.RIGHT_SHOULDER, LM.RIGHT_HIP, LM.RIGHT_KNEE),
-            "left_knee":  (LM.LEFT_HIP, LM.LEFT_KNEE, LM.LEFT_ANKLE),
-            "right_knee": (LM.RIGHT_HIP, LM.RIGHT_KNEE, LM.RIGHT_ANKLE),
-        },
-        "start_threshold": 100,   # bent-over pull-initiation position
-        "lockout_threshold": 170, # hip extension approaching 180 deg at lockout
-        "back_min_angle": 150,    # shoulder-hip-knee proxy for back rounding
+        "display_name": "Deadlift",
+        "triads": _bilateral(HIP),
+        "primary_angle": ["left", "right"],
+        "pattern": "extension", "low_threshold": 100, "high_threshold": 170,
+        "form_rules": [
+            {"angle": ["left", "right"], "state": "down", "min": 150,
+             "message": "Warning: back rounding detected"},
+        ],
+    },
+
+    "lunge": {
+        "display_name": "Lunge",
+        "triads": {**_bilateral(KNEE), "back_left": HIP("LEFT"), "back_right": HIP("RIGHT")},
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 90, "tolerance": 15, "high_threshold": 160,
+        "form_rules": [
+            {"angle": ["back_left", "back_right"], "state": "down", "min": 150,
+             "message": "Keep your torso upright"},
+        ],
+    },
+
+    "bicep_curl": {
+        "display_name": "Bicep Curl",
+        "triads": {**_bilateral(ELBOW), "sway_left": SHOULDER_ABD("LEFT"), "sway_right": SHOULDER_ABD("RIGHT")},
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 45, "tolerance": 10, "high_threshold": 150,
+        "form_rules": [
+            {"angle": ["sway_left", "sway_right"], "state": "any", "max": 40,
+             "message": "Avoid swinging your shoulders/elbows"},
+        ],
+    },
+
+    "shoulder_press": {
+        "display_name": "Shoulder Press",
+        "triads": {**_bilateral(ELBOW), "arm_left": SHOULDER_ABD("LEFT"), "arm_right": SHOULDER_ABD("RIGHT")},
+        "primary_angle": ["left", "right"],
+        "pattern": "extension", "low_threshold": 90, "high_threshold": 160,
+        "form_rules": [
+            {"angle": ["arm_left", "arm_right"], "state": "up", "min": 150,
+             "message": "Press arms fully overhead"},
+        ],
+    },
+
+    "situp": {
+        "display_name": "Sit-Up / Crunch",
+        "triads": _bilateral(HIP),
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 90, "tolerance": 15, "high_threshold": 140,
+        "form_rules": [],
+    },
+
+    "jumping_jack": {
+        "display_name": "Jumping Jack",
+        "triads": _bilateral(SHOULDER_ABD),
+        "primary_angle": ["left", "right"],
+        "pattern": "extension", "low_threshold": 30, "high_threshold": 150,
+        "form_rules": [],
+    },
+
+    "high_knees": {
+        "display_name": "High Knees",
+        "triads": _bilateral(HIP),
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 100, "tolerance": 15, "high_threshold": 160,
+        "form_rules": [],
+    },
+
+    "lateral_raise": {
+        "display_name": "Lateral Raise",
+        "triads": {**_bilateral(SHOULDER_ABD), "elbow_left": ELBOW("LEFT"), "elbow_right": ELBOW("RIGHT")},
+        "primary_angle": ["left", "right"],
+        "pattern": "extension", "low_threshold": 20, "high_threshold": 85,
+        "form_rules": [
+            {"angle": ["elbow_left", "elbow_right"], "state": "up", "min": 150,
+             "message": "Keep your arms straight"},
+        ],
+    },
+
+    "tricep_dip": {
+        "display_name": "Tricep Dip",
+        "triads": _bilateral(ELBOW),
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 90, "tolerance": 10, "high_threshold": 160,
+        "form_rules": [],
+    },
+
+    "glute_bridge": {
+        "display_name": "Glute Bridge",
+        "triads": _bilateral(HIP),
+        "primary_angle": ["left", "right"],
+        "pattern": "extension", "low_threshold": 110, "high_threshold": 170,
+        "form_rules": [],
+    },
+
+    "mountain_climber": {
+        "display_name": "Mountain Climber",
+        "triads": {**_bilateral(HIP), "line_left": BODY_LINE("LEFT"), "line_right": BODY_LINE("RIGHT")},
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 90, "tolerance": 15, "high_threshold": 160,
+        "form_rules": [
+            {"angle": ["line_left", "line_right"], "state": "any", "min": 160,
+             "message": "Keep hips level, avoid piking"},
+        ],
+    },
+
+    "calf_raise": {
+        "display_name": "Calf Raise",
+        "triads": {**_bilateral(ANKLE), "knee_left": KNEE("LEFT"), "knee_right": KNEE("RIGHT")},
+        "primary_angle": ["left", "right"],
+        "pattern": "extension", "low_threshold": 70, "high_threshold": 110,
+        "form_rules": [
+            {"angle": ["knee_left", "knee_right"], "state": "any", "min": 165,
+             "message": "Keep your knees straight"},
+        ],
+    },
+
+    "pullup": {
+        "display_name": "Pull-Up",
+        "triads": _bilateral(ELBOW),
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 70, "tolerance": 15, "high_threshold": 160,
+        "form_rules": [],
+    },
+
+    "bicycle_crunch": {
+        "display_name": "Bicycle Crunch",
+        "triads": _bilateral(HIP),
+        "primary_angle": ["left", "right"],
+        "pattern": "flexion", "low_threshold": 90, "tolerance": 15, "high_threshold": 150,
+        "form_rules": [],
     },
 }
 
@@ -84,47 +224,35 @@ def extract_angles(landmarks, exercise, width, height):
     return angles, avg_visibility
 
 
+def _avg(angles, keys):
+    vals = [angles[k] for k in keys if k in angles]
+    return sum(vals) / len(vals) if vals else None
+
+
 def validate_form(exercise, angles, state):
     """
-    Applies the exercise-specific "scope of error" rules.
+    Applies the exercise's scope-of-error form_rules generically.
 
     Returns:
         (form_ok: bool, feedback: str, primary_angle: float)
-        primary_angle is the averaged left/right angle that the
-        ExerciseStateMachine uses to drive state transitions.
     """
     config = EXERCISE_CONFIG[exercise]
+    primary_angle = _avg(angles, config["primary_angle"])
+
     feedback = []
     form_ok = True
 
-    if exercise == "squat":
-        knee_avg = (angles["left_knee"] + angles["right_knee"]) / 2
-        back_avg = (angles["left_back"] + angles["right_back"]) / 2
-
-        if state == "down" and back_avg < config["back_min_angle"]:
+    for rule in config["form_rules"]:
+        if rule["state"] != "any" and rule["state"] != state:
+            continue
+        val = _avg(angles, rule["angle"])
+        if val is None:
+            continue
+        if "min" in rule and val < rule["min"]:
             form_ok = False
-            feedback.append("Keep your back straighter")
-
-        return form_ok, "; ".join(feedback) if feedback else "Good form", knee_avg
-
-    elif exercise == "pushup":
-        elbow_avg = (angles["left_elbow"] + angles["right_elbow"]) / 2
-        body_avg = (angles["left_body"] + angles["right_body"]) / 2
-
-        target, tol = config["body_line_target"], config["body_line_tolerance"]
-        if state == "down" and not (target - tol <= body_avg <= target + tol):
+            feedback.append(rule["message"])
+        if "max" in rule and val > rule["max"]:
             form_ok = False
-            feedback.append("Keep your body in a straight line (avoid hip sag/pike)")
+            feedback.append(rule["message"])
 
-        return form_ok, "; ".join(feedback) if feedback else "Good form", elbow_avg
-
-    elif exercise == "deadlift":
-        hip_avg = (angles["left_hip"] + angles["right_hip"]) / 2
-
-        if hip_avg < config["back_min_angle"] and state == "down":
-            form_ok = False
-            feedback.append("Warning: back rounding detected")
-
-        return form_ok, "; ".join(feedback) if feedback else "Good form", hip_avg
-
-    return True, "", 0.0
+    return form_ok, "; ".join(feedback) if feedback else "Good form", primary_angle

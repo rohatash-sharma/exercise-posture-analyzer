@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+env/
+*.egg-info/
+
+# Streamlit
+.streamlit/
+
+# Windows/WSL download metadata (harmless but not part of the project)
+*:Zone.Identifier
+*.Zone.Identifier
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+
+# Node (only relevant if you add tooling to frontend/ later)
+node_modules/
