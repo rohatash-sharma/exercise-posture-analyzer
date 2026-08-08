@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="night">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GONIO — AI Form Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+  /* ============ TOKENS ============ */
+  :root,
+  html[data-theme="night"]{
+    --bg:#12100B;
+    --bg-grid: rgba(227,179,65,0.05);
+    --panel:#1B1811;
+    --panel-alt:#211D14;
+    --border:#332C1B;
+    --border-strong:#4a3f22;
+    --text:#F5EFDD;
+    --text-dim:#B7AA88;
+    --text-faint:#7d7358;
+    --gold:#E3B341;
+    --gold-strong:#F4CB5B;
+    --gold-deep:#B8860B;
+    --gold-soft: rgba(227,179,65,0.14);
+    --danger:#D9663F;
+    --danger-soft: rgba(217,102,63,0.14);
+    --shadow: 0 10px 34px rgba(0,0,0,0.5);
+  }
+  html[data-theme="day"]{
+    --bg:#F2EBD6;
+    --bg-grid: rgba(122,83,8,0.07);
+    --panel:#FBF7EA;
+    --panel-alt:#F4EDD8;
+    --border:#E0D1A0;
+    --border-strong:#C7B268;
+    --text:#241E12;
+    --text-dim:#5B5033;
+    --text-faint:#8C7F5C;
+    --gold:#8A5F09;
+    --gold-strong:#734E06;
+    --gold-deep:#6B4906;
+    --gold-soft: rgba(138,95,9,0.12);
+    --danger:#A8391D;
+    --danger-soft: rgba(168,57,29,0.10);
+    --shadow: 0 10px 28px rgba(70,58,20,0.14);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 1px 1px, var(--bg-grid) 1px, transparent 1px) 0 0/26px 26px,
+      var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    transition: background-color .35s ease, color .35s ease;
+  }
+
+  a{color:var(--gold);}
+  ::selection{ background:var(--gold-soft); }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:4px; }
+
+  :focus-visible{
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  h1,h2,h3,.display{
+    font-family:'Oswald', 'Arial Narrow', sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .mono{ font-family:'Space Mono','Courier New', monospace; }
+
+  @media (prefers-reduced-motion: no-preference){
+    .fade-in{ animation: fadeUp .6s ease both; }
+    .fade-in:nth-of-type(1){ animation-delay:.02s; }
+    .fade-in:nth-of-type(2){ animation-delay:.10s; }
+    .fade-in:nth-of-type(3){ animation-delay:.18s; }
+    .fade-in:nth-of-type(4){ animation-delay:.26s; }
+  }
+  @keyframes fadeUp{
+    from{ opacity:0; transform:translateY(10px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  /* ============ TOPBAR ============ */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    padding:18px 32px;
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .brand{ display:flex; flex-direction:column; line-height:1; }
+  .brand-mark{
+    font-size:1.6rem;
+    font-weight:700;
+    color:var(--gold);
+    letter-spacing:.08em;
+  }
+  .brand-sub{
+    font-family:'Space Mono', monospace;
+    font-size:.62rem;
+    letter-spacing:.22em;
+    color:var(--text-faint);
+    margin-top:4px;
+  }
+
+  .exercise-select{
+    display:flex;
+    background:var(--panel-alt);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:4px;
+    gap:2px;
+  }
+  .ex-btn{
+    font-family:'Oswald', sans-serif;
+    font-size:.78rem;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    background:transparent;
+    border:none;
+    color:var(--text-dim);
+    padding:8px 18px;
+    border-radius:999px;
+    cursor:pointer;
+    transition: background-color .2s ease, color .2s ease;
+  }
+  .ex-btn:hover{ color:var(--text); }
+  .ex-btn.active{
+    background:var(--gold);
+    color:#181305;
+    font-weight:600;
+  }
+
+  .theme-toggle{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .theme-toggle input{ position:absolute; opacity:0; width:1px; height:1px; }
+  .toggle-track{
+    width:46px; height:24px;
+    border-radius:999px;
+    background:var(--panel-alt);
+    border:1px solid var(--border-strong);
+    position:relative;
+    transition:background-color .2s ease;
+  }
+  .toggle-thumb{
+    position:absolute;
+    top:2px; left:2px;
+    width:18px; height:18px;
+    border-radius:50%;
+    background:var(--gold);
+    transition: transform .25s ease;
+  }
+  input:not(:checked) + .toggle-track .toggle-thumb{ transform:translateX(22px); }
+  .theme-toggle input:focus-visible + .toggle-track{ outline:2px solid var(--gold); outline-offset:2px; }
+  .theme-label{
+    font-family:'Space Mono', monospace;
+    font-size:.65rem;
+    letter-spacing:.16em;
+    color:var(--text-faint);
+    width:44px;
+  }
+
+  /* ============ LAYOUT ============ */
+  .layout{
+    max-width:1280px;
+    margin:0 auto;
+    padding:32px;
+    display:grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap:24px;
+    align-items:start;
+  }
+  @media (max-width:920px){
+    .layout{ grid-template-columns:1fr; padding:20px; }
+    .topbar{ padding:16px 20px; }
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:20px 22px;
+    box-shadow:var(--shadow);
+  }
+  .side-col{ display:flex; flex-direction:column; gap:20px; }
+  .panel-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .panel-title{
+    font-family:'Oswald', sans-serif;
+    font-size:.82rem;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+  }
+
+  /* ============ CAMERA / VIEWFINDER ============ */
+  .viewfinder{
+    position:relative;
+    aspect-ratio:4/3;
+    background:var(--panel-alt);
+    border:1px solid var(--border);
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  .viewfinder video{
+    width:100%; height:100%;
+    object-fit:cover;
+    display:none;
+  }
+  .viewfinder.active video{ display:block; }
+  .viewfinder.active .cam-placeholder{ display:none; }
+
+  .corner{
+    position:absolute;
+    width:26px; height:26px;
+    border-color:var(--gold);
+    border-style:solid;
+    border-width:0;
+    opacity:.85;
+    z-index:2;
+  }
+  .corner.tl{ top:14px; left:14px; border-top-width:2px; border-left-width:2px; }
+  .corner.tr{ top:14px; right:14px; border-top-width:2px; border-right-width:2px; }
+  .corner.bl{ bottom:14px; left:14px; border-bottom-width:2px; border-left-width:2px; }
+  .corner.br{ bottom:14px; right:14px; border-bottom-width:2px; border-right-width:2px; }
+
+  .cam-placeholder{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:14px;
+    text-align:center;
+    padding:24px;
+    color:var(--text-dim);
+  }
+  .cam-placeholder svg{ width:44px; height:44px; stroke:var(--gold); opacity:.8; }
+  .cam-placeholder p{ max-width:260px; font-size:.88rem; margin:0; }
+
+  .cam-caption{
+    position:absolute;
+    left:14px; bottom:14px;
+    font-family:'Space Mono', monospace;
+    font-size:.62rem;
+    letter-spacing:.12em;
+    color:var(--gold-strong);
+    background:rgba(0,0,0,.35);
+    padding:5px 9px;
+    border-radius:6px;
+    z-index:2;
+  }
+  html[data-theme="day"] .cam-caption{ background:rgba(255,255,255,.55); }
+
+  .cam-toggle{
+    position:absolute;
+    right:14px; bottom:14px;
+    z-index:3;
+    font-family:'Oswald', sans-serif;
+    font-size:.75rem;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    background:var(--gold);
+    color:#181305;
+    border:none;
+    padding:9px 16px;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  .cam-toggle:hover{ background:var(--gold-strong); }
+  .cam-placeholder .cam-toggle{ position:static; }
+
+  /* ============ PIPELINE STRIP ============ */
+  .pipeline-strip{
+    margin-top:20px;
+    display:grid;
+    grid-template-columns:repeat(8, 1fr);
+    gap:8px;
+    overflow-x:auto;
+    padding-bottom:4px;
+  }
+  @media (max-width:920px){
+    .pipeline-strip{ grid-auto-flow:column; grid-template-columns:none; grid-auto-columns:110px; }
+  }
+  .pstep{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 8px;
+    text-align:center;
+    transition: box-shadow .3s ease, border-color .3s ease;
+  }
+  .pstep .n{
+    font-family:'Space Mono', monospace;
+    font-size:.66rem;
+    color:var(--gold-deep);
+  }
+  .pstep .l{
+    font-family:'Oswald', sans-serif;
+    font-size:.68rem;
+    letter-spacing:.02em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-top:3px;
+    line-height:1.25;
+  }
+  .pstep.pulse{
+    border-color:var(--gold);
+    box-shadow:0 0 0 1px var(--gold), 0 0 16px var(--gold-soft);
+  }
+  .pstep.pulse .l{ color:var(--gold); }
+
+  /* ============ GAUGE PANEL ============ */
+  .zone-pill{
+    font-family:'Space Mono', monospace;
+    font-size:.62rem;
+    letter-spacing:.1em;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid var(--border-strong);
+    color:var(--text-dim);
+  }
+  .zone-pill.rest{ color:var(--text-dim); }
+  .zone-pill.target{ color:var(--gold); border-color:var(--gold); background:var(--gold-soft); }
+  .zone-pill.trans{ color:var(--text); border-color:var(--border-strong); }
+
+  #gauge{ width:100%; height:auto; display:block; }
+  .angle-readout{
+    text-align:center;
+    margin-top:-18px;
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    font-size:2.6rem;
+    color:var(--gold);
+  }
+  .angle-readout .deg{ font-size:1.4rem; color:var(--text-dim); }
+  .joint-label{
+    text-align:center;
+    font-family:'Oswald', sans-serif;
+    font-size:.72rem;
+    letter-spacing:.16em;
+    color:var(--text-faint);
+    margin-bottom:16px;
+  }
+
+  input[type="range"]{
+    -webkit-appearance:none;
+    width:100%;
+    height:4px;
+    border-radius:999px;
+    background:var(--border-strong);
+    margin:8px 0 14px;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:16px; height:16px;
+    border-radius:50%;
+    background:var(--gold);
+    border:2px solid var(--panel);
+    cursor:pointer;
+    box-shadow:0 0 0 1px var(--gold);
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:16px; height:16px;
+    border-radius:50%;
+    background:var(--gold);
+    border:2px solid var(--panel);
+    cursor:pointer;
+  }
+
+  .auto-btn, .reset-btn{
+    width:100%;
+    font-family:'Oswald', sans-serif;
+    font-size:.78rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    background:transparent;
+    color:var(--gold);
+    border:1px solid var(--gold-deep);
+    padding:10px;
+    border-radius:8px;
+    cursor:pointer;
+    transition: background-color .2s ease, color .2s ease;
+  }
+  .reset-btn{ width:auto; padding:6px 12px; font-size:.68rem; }
+  .auto-btn:hover, .reset-btn:hover{ background:var(--gold); color:#181305; }
+  .auto-btn:disabled{ opacity:.5; cursor:default; background:transparent; color:var(--gold); }
+
+  /* ============ REP PANEL ============ */
+  .rep-count{
+    text-align:center;
+    font-family:'Space Mono', monospace;
+    font-weight:700;
+    font-size:4.2rem;
+    color:var(--gold);
+    line-height:1;
+    margin:4px 0 18px;
+  }
+  .state-machine{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .sm-node{
+    font-family:'Space Mono', monospace;
+    font-size:.64rem;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:6px 10px;
+    border-radius:999px;
+    border:1px solid var(--border-strong);
+    color:var(--text-faint);
+    transition: all .25s ease;
+  }
+  .sm-node.on{
+    color:#181305;
+    background:var(--gold);
+    border-color:var(--gold);
+  }
+  .sm-arrow{ color:var(--text-faint); font-size:.8rem; }
+
+  /* ============ VALIDATION PANEL ============ */
+  .status-badge{
+    font-family:'Space Mono', monospace;
+    font-size:.66rem;
+    letter-spacing:.1em;
+    padding:4px 10px;
+    border-radius:999px;
+    border:1px solid var(--border-strong);
+    color:var(--text-dim);
+  }
+  .status-badge.pass{ color:var(--gold); border-color:var(--gold); background:var(--gold-soft); }
+  .status-badge.fail{ color:var(--danger); border-color:var(--danger); background:var(--danger-soft); }
+
+  .rule-text{
+    font-size:.85rem;
+    line-height:1.55;
+    color:var(--text-dim);
+    margin:0 0 16px;
+  }
+
+  .tb-track{
+    position:relative;
+    height:8px;
+    border-radius:999px;
+    background:var(--panel-alt);
+    border:1px solid var(--border);
+  }
+  .tb-band{
+    position:absolute;
+    top:-1px; bottom:-1px;
+    background:var(--gold-soft);
+    border-left:1px solid var(--gold-deep);
+    border-right:1px solid var(--gold-deep);
+    border-radius:4px;
+  }
+  .tb-marker{
+    position:absolute;
+    top:-5px;
+    width:2px; height:18px;
+    background:var(--text);
+    transition:left .15s linear;
+  }
+
+  /* ============ LOG PANEL ============ */
+  .log-list{
+    list-style:none;
+    margin:0; padding:0;
+    max-height:190px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .log-list li{
+    font-family:'Space Mono', monospace;
+    font-size:.72rem;
+    line-height:1.4;
+    padding:7px 9px;
+    border-radius:6px;
+    background:var(--panel-alt);
+    border:1px solid var(--border);
+    color:var(--text-dim);
+  }
+  .log-list li.ok{ color:var(--gold); border-color:var(--gold-deep); }
+  .log-list li.bad{ color:var(--danger); border-color:var(--danger); }
+  .log-empty{ color:var(--text-faint); font-size:.78rem; padding:6px 2px; }
+
+  /* ============ FOOTER ============ */
+  .foot{
+    max-width:1280px;
+    margin:12px auto 40px;
+    padding:24px 32px 0;
+    border-top:1px solid var(--border);
+    text-align:center;
+  }
+  .stack-chips{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:10px 18px;
+    font-family:'Space Mono', monospace;
+    font-size:.68rem;
+    letter-spacing:.06em;
+    color:var(--text-faint);
+    margin:20px 0 14px;
+  }
+  .stack-chips span::before{ content:"·"; color:var(--gold-deep); margin-right:18px; }
+  .stack-chips span:first-child::before{ content:""; margin:0; }
+  .foot-note{
+    font-size:.78rem;
+    color:var(--text-faint);
+    max-width:640px;
+    margin:0 auto 20px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">GONIO</span>
+    <span class="brand-sub">AI FORM COACH</span>
+  </div>
+
+  <div class="exercise-select" role="tablist" aria-label="Select exercise">
+    <button class="ex-btn active" data-ex="squat" role="tab" aria-selected="true">Squat</button>
+    <button class="ex-btn" data-ex="pushup" role="tab" aria-selected="false">Push-Up</button>
+    <button class="ex-btn" data-ex="deadlift" role="tab" aria-selected="false">Deadlift</button>
+  </div>
+
+  <label class="theme-toggle">
+    <input type="checkbox" id="themeSwitch" checked aria-label="Toggle night mode">
+    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+    <span class="theme-label" id="themeLabel">NIGHT</span>
+  </label>
+</header>
+
+<main class="layout">
+
+  <section class="camera-col">
+    <div class="viewfinder fade-in" id="viewfinder">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+      <video id="cam" autoplay playsinline muted></video>
+      <div class="cam-placeholder" id="camPlaceholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        <p>Enable your camera to preview the live input stream that would feed the pose model.</p>
+        <button class="cam-toggle" id="camToggle">Enable camera</button>
+      </div>
+      <div class="cam-caption">STEP 1 · VIDEO INPUT STREAM</div>
+    </div>
+
+    <div class="pipeline-strip fade-in" id="pipeline"></div>
+  </section>
+
+  <aside class="side-col">
+    <div class="panel gauge-panel fade-in">
+      <div class="panel-head">
+        <span class="panel-title">Joint Angle</span>
+        <span class="zone-pill rest" id="zonePill">REST</span>
+      </div>
+      <svg id="gauge" viewBox="0 0 300 175" aria-hidden="true"></svg>
+      <div class="angle-readout"><span id="angleValue">178</span><span class="deg">°</span></div>
+      <div class="joint-label" id="jointLabel">KNEE ANGLE</div>
+      <input type="range" min="0" max="180" value="178" id="angleSlider" aria-label="Simulate joint angle in degrees">
+      <button class="auto-btn" id="autoRepBtn">▶ Auto rep</button>
+    </div>
+
+    <div class="panel rep-panel fade-in">
+      <div class="panel-head">
+        <span class="panel-title">Repetitions</span>
+        <button class="reset-btn" id="resetBtn">Reset</button>
+      </div>
+      <div class="rep-count mono" id="repCount">0</div>
+      <div class="state-machine" id="stateMachine">
+        <span class="sm-node on" data-node="REST">Rest</span>
+        <span class="sm-arrow">→</span>
+        <span class="sm-node" data-node="TRANS">Transition</span>
+        <span class="sm-arrow">→</span>
+        <span class="sm-node" data-node="TARGET">Target</span>
+      </div>
+    </div>
+
+    <div class="panel validation-panel fade-in">
+      <div class="panel-head">
+        <span class="panel-title">Form Validation</span>
+        <span class="status-badge" id="statusBadge">—</span>
+      </div>
+      <p class="rule-text" id="ruleText"></p>
+      <div class="tb-track">
+        <div class="tb-band" id="tbBand"></div>
+        <div class="tb-marker" id="tbMarker"></div>
+      </div>
+    </div>
+
+    <div class="panel log-panel fade-in">
+      <div class="panel-head"><span class="panel-title">Feedback Log</span></div>
+      <ul class="log-list" id="logList">
+        <li class="log-empty">Drag the angle slider or tap Auto rep to see live feedback.</li>
+      </ul>
+    </div>
+  </aside>
+</main>
+
+<footer class="foot">
+  <div class="stack-chips">
+    <span>OpenCV</span><span>MediaPipe Pose</span><span>YOLOv8-pose</span>
+    <span>NumPy</span><span>Streamlit / Flask / React</span>
+  </div>
+  <p class="foot-note">This is the frontend interface layer for the AI/ML Exercise Posture Analyzer pipeline. Steps 1–3 (video capture, pose estimation, landmark extraction) connect to a MediaPipe or YOLOv8-pose backend; steps 4–8, shown here running live off simulated joint-angle input, are the angle calculation, form validation, state machine, repetition counter, and dashboard.</p>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- Exercise configuration (from the project's scope-of-error rules) ---------- */
+  var EXERCISES = {
+    squat: {
+      label: "Squat",
+      joint: "KNEE ANGLE",
+      restMin: 150, restMax: 180,
+      targetMin: 80, targetMax: 100,
+      rule: "Down state: knee angle must drop below 90° ± 10° (80°–100°) while the back stays straight (shoulder–hip–knee alignment).",
+      start: 178
+    },
+    pushup: {
+      label: "Push-Up",
+      joint: "ELBOW ANGLE",
+      restMin: 150, restMax: 180,
+      targetMin: 0, targetMax: 90,
+      rule: "Down state: elbow angle must reach ≤ 90°. Body alignment must stay close to 180° ± 15° throughout.",
+      start: 175
+    },
+    deadlift: {
+      label: "Deadlift",
+      joint: "HIP EXTENSION ANGLE",
+      restMin: 0, restMax: 30,
+      targetMin: 165, targetMax: 180,
+      rule: "Tracked from the initial pull to lockout: hip extension must approach 180° at lockout while the back stays neutral, without rounding.",
+      start: 20
+    }
+  };
+
+  var currentEx = "squat";
+  var repCount = 0;
+  var previousZone = "REST";
+  var reachedTarget = false;
+  var autoRunning = false;
+
+  var els = {
+    exBtns: document.querySelectorAll(".ex-btn"),
+    slider: document.getElementById("angleSlider"),
+    angleValue: document.getElementById("angleValue"),
+    jointLabel: document.getElementById("jointLabel"),
+    zonePill: document.getElementById("zonePill"),
+    repCount: document.getElementById("repCount"),
+    smNodes: document.querySelectorAll(".sm-node"),
+    ruleText: document.getElementById("ruleText"),
+    statusBadge: document.getElementById("statusBadge"),
+    tbBand: document.getElementById("tbBand"),
+    tbMarker: document.getElementById("tbMarker"),
+    logList: document.getElementById("logList"),
+    resetBtn: document.getElementById("resetBtn"),
+    autoBtn: document.getElementById("autoRepBtn"),
+    themeSwitch: document.getElementById("themeSwitch"),
+    themeLabel: document.getElementById("themeLabel"),
+    camToggle: document.getElementById("camToggle"),
+    viewfinder: document.getElementById("viewfinder"),
+    cam: document.getElementById("cam"),
+    pipeline: document.getElementById("pipeline"),
+    gauge: document.getElementById("gauge")
+  };
+
+  /* ---------- Pipeline strip ---------- */
+  var PIPE_STEPS = [
+    "Video Input Stream", "Pose Estimation", "Extract Landmarks", "Angle Calculation",
+    "Form Validation", "State Machine", "Rep Counter", "Dashboard"
+  ];
+  PIPE_STEPS.forEach(function(label, i){
+    var d = document.createElement("div");
+    d.className = "pstep";
+    d.dataset.step = i + 1;
+    d.innerHTML = '<div class="n">' + String(i+1).padStart(2,"0") + '</div><div class="l">' + label + '</div>';
+    els.pipeline.appendChild(d);
+  });
+  function pulseStep(n){
+    var el = els.pipeline.querySelector('[data-step="' + n + '"]');
+    if(!el) return;
+    el.classList.add("pulse");
+    clearTimeout(el._t);
+    el._t = setTimeout(function(){ el.classList.remove("pulse"); }, 900);
+  }
+
+  /* ---------- Gauge (polyline-based semicircle, avoids SVG arc sweep ambiguity) ---------- */
+  var CX = 150, CY = 155, R_OUT = 120, R_IN = 100, R_TICK_IN = 108;
+  function polar(cx, cy, r, deg){
+    var rad = deg * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+  }
+  function bandPath(startDeg, endDeg){
+    var pts = [];
+    var step = 2;
+    for(var a = startDeg; a <= endDeg; a += step){
+      pts.push(polar(CX, CY, R_OUT, a));
+    }
+    pts.push(polar(CX, CY, R_OUT, endDeg));
+    var innerPts = [];
+    for(var b = endDeg; b >= startDeg; b -= step){
+      innerPts.push(polar(CX, CY, R_IN, b));
+    }
+    innerPts.push(polar(CX, CY, R_IN, startDeg));
+    var all = pts.concat(innerPts);
+    return "M " + all.map(function(p){ return p.x.toFixed(1) + "," + p.y.toFixed(1); }).join(" L ") + " Z";
+  }
+  function trackPath(){
+    var pts = [];
+    for(var a = 0; a <= 180; a += 3){ pts.push(polar(CX, CY, (R_OUT+R_IN)/2, a)); }
+    return "M " + pts.map(function(p){ return p.x.toFixed(1) + "," + p.y.toFixed(1); }).join(" L ");
+  }
+
+  var gaugeGroups = {};
+  function buildGauge(){
+    var svgNS = "http://www.w3.org/2000/svg";
+    els.gauge.innerHTML = "";
+
+    var track = document.createElementNS(svgNS, "path");
+    track.setAttribute("d", trackPath());
+    track.setAttribute("fill", "none");
+    track.setAttribute("stroke", "var(--border-strong)");
+    track.setAttribute("stroke-width", (R_OUT - R_IN));
+    els.gauge.appendChild(track);
+
+    var band = document.createElementNS(svgNS, "path");
+    band.setAttribute("id", "gaugeBand");
+    band.setAttribute("fill", "var(--gold-soft)");
+    band.setAttribute("stroke", "var(--gold-deep)");
+    band.setAttribute("stroke-width", "1");
+    els.gauge.appendChild(band);
+    gaugeGroups.band = band;
+
+    for(var t = 0; t <= 180; t += 10){
+      var p1 = polar(CX, CY, R_IN - 2, t);
+      var p2 = polar(CX, CY, R_TICK_IN, t);
+      var line = document.createElementNS(svgNS, "line");
+      line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
+      line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
+      line.setAttribute("stroke", "var(--text-faint)");
+      line.setAttribute("stroke-width", t % 30 === 0 ? "2" : "1");
+      els.gauge.appendChild(line);
+
+      if(t % 30 === 0){
+        var lp = polar(CX, CY, R_OUT + 14, t);
+        var txt = document.createElementNS(svgNS, "text");
+        txt.setAttribute("x", lp.x); txt.setAttribute("y", lp.y + 3);
+        txt.setAttribute("text-anchor", "middle");
+        txt.setAttribute("font-size", "9");
+        txt.setAttribute("font-family", "Space Mono, monospace");
+        txt.setAttribute("fill", "var(--text-faint)");
+        txt.textContent = t + "°";
+        els.gauge.appendChild(txt);
+      }
+    }
+
+    var needle = document.createElementNS(svgNS, "line");
+    needle.setAttribute("id", "gaugeNeedle");
+    needle.setAttribute("x1", CX); needle.setAttribute("y1", CY);
+    needle.setAttribute("stroke", "var(--gold)");
+    needle.setAttribute("stroke-width", "3");
+    needle.setAttribute("stroke-linecap", "round");
+    els.gauge.appendChild(needle);
+    gaugeGroups.needle = needle;
+
+    var hub = document.createElementNS(svgNS, "circle");
+    hub.setAttribute("cx", CX); hub.setAttribute("cy", CY); hub.setAttribute("r", "6");
+    hub.setAttribute("fill", "var(--gold)");
+    els.gauge.appendChild(hub);
+  }
+
+  function updateGaugeBand(){
+    var cfg = EXERCISES[currentEx];
+    gaugeGroups.band.setAttribute("d", bandPath(cfg.targetMin, cfg.targetMax));
+  }
+  function updateNeedle(value){
+    var tip = polar(CX, CY, R_IN - 6, value);
+    gaugeGroups.needle.setAttribute("x2", tip.x);
+    gaugeGroups.needle.setAttribute("y2", tip.y);
+  }
+
+  /* ---------- Zone / state machine logic ---------- */
+  function getZone(value, cfg){
+    if(value >= cfg.targetMin && value <= cfg.targetMax) return "TARGET";
+    if(value >= cfg.restMin && value <= cfg.restMax) return "REST";
+    return "TRANS";
+  }
+
+  function log(message, ok){
+    var empty = els.logList.querySelector(".log-empty");
+    if(empty) empty.remove();
+    var li = document.createElement("li");
+    li.className = ok === true ? "ok" : ok === false ? "bad" : "";
+    li.textContent = message;
+    els.logList.insertBefore(li, els.logList.firstChild);
+    while(els.logList.children.length > 30){
+      els.logList.removeChild(els.logList.lastChild);
+    }
+  }
+
+  function setStatusBadge(zone){
+    els.statusBadge.classList.remove("pass", "fail");
+    if(zone === "TARGET"){
+      els.statusBadge.textContent = "PASS";
+      els.statusBadge.classList.add("pass");
+    } else if(zone === "REST"){
+      els.statusBadge.textContent = "READY";
+    } else {
+      els.statusBadge.textContent = "MOVING";
+    }
+  }
+
+  function setThresholdBar(cfg, value){
+    var pctStart = (cfg.targetMin / 180) * 100;
+    var pctEnd = (cfg.targetMax / 180) * 100;
+    els.tbBand.style.left = pctStart + "%";
+    els.tbBand.style.width = Math.max(pctEnd - pctStart, 1) + "%";
+    els.tbMarker.style.left = ((value / 180) * 100) + "%";
+  }
+
+  function setStateMachine(zone){
+    els.smNodes.forEach(function(n){
+      n.classList.toggle("on", n.dataset.node === zone);
+    });
+  }
+
+  function updateAngle(value){
+    value = Math.max(0, Math.min(180, Math.round(value)));
+    var cfg = EXERCISES[currentEx];
+    var zone = getZone(value, cfg);
+
+    els.angleValue.textContent = value;
+    els.slider.value = value;
+    updateNeedle(value);
+    setThresholdBar(cfg, value);
+    setStatusBadge(zone);
+    setStateMachine(zone);
+    pulseStep(4);
+
+    els.zonePill.textContent = zone === "TRANS" ? "TRANSITION" : zone;
+    els.zonePill.className = "zone-pill " + (zone === "TARGET" ? "target" : zone === "TRANS" ? "trans" : "rest");
+
+    if(zone === "TARGET"){
+      reachedTarget = true;
+      pulseStep(5);
+    }
+
+    if(previousZone !== "REST" && zone === "REST"){
+      pulseStep(6);
+      if(reachedTarget){
+        repCount++;
+        els.repCount.textContent = repCount;
+        pulseStep(7);
+        pulseStep(8);
+        log("✓ Rep " + repCount + " counted — " + cfg.label.toLowerCase() + " reached " + value + "° range target (" + cfg.targetMin + "°–" + cfg.targetMax + "°).", true);
+      } else if(previousZone === "TRANS"){
+        log("✕ Attempt did not reach the required range (" + cfg.targetMin + "°–" + cfg.targetMax + "°). Rep not counted.", false);
+      }
+      reachedTarget = false;
+    }
+    previousZone = zone;
+  }
+
+  /* ---------- Exercise switching ---------- */
+  function selectExercise(ex){
+    currentEx = ex;
+    var cfg = EXERCISES[ex];
+    els.exBtns.forEach(function(b){
+      var active = b.dataset.ex === ex;
+      b.classList.toggle("active", active);
+      b.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    els.jointLabel.textContent = cfg.joint;
+    els.ruleText.textContent = cfg.rule;
+    els.slider.value = cfg.start;
+    updateGaugeBand();
+    previousZone = "REST";
+    reachedTarget = false;
+    updateAngle(cfg.start);
+  }
+
+  els.exBtns.forEach(function(btn){
+    btn.addEventListener("click", function(){ selectExercise(btn.dataset.ex); });
+  });
+
+  els.slider.addEventListener("input", function(){
+    if(autoRunning) return;
+    updateAngle(Number(els.slider.value));
+  });
+
+  els.resetBtn.addEventListener("click", function(){
+    repCount = 0;
+    els.repCount.textContent = "0";
+    els.logList.innerHTML = '<li class="log-empty">Drag the angle slider or tap Auto rep to see live feedback.</li>';
+    previousZone = "REST";
+    reachedTarget = false;
+  });
+
+  /* ---------- Auto rep animation ---------- */
+  function easeInOutSine(t){ return -(Math.cos(Math.PI * t) - 1) / 2; }
+
+  function runAutoRep(){
+    if(autoRunning) return;
+    autoRunning = true;
+    els.autoBtn.disabled = true;
+    var cfg = EXERCISES[currentEx];
+    var restVal = (cfg.restMin + cfg.restMax) / 2;
+    var targetVal = (cfg.targetMin + cfg.targetMax) / 2;
+    var duration = 1500;
+    var start = null;
+
+    function frame(ts){
+      if(!start) start = ts;
+      var elapsed = ts - start;
+      var t = Math.min(elapsed / duration, 1);
+      var eased = easeInOutSine(t);
+      var half = t < 0.5 ? eased * 2 : (1 - eased) === 0 ? 1 : (2 - eased * 2);
+      var progress;
+      if(t <= 0.5){
+        progress = easeInOutSine(t / 0.5);
+        updateAngle(restVal + (targetVal - restVal) * progress);
+      } else {
+        progress = easeInOutSine((t - 0.5) / 0.5);
+        updateAngle(targetVal + (restVal - targetVal) * progress);
+      }
+      if(t < 1){
+        requestAnimationFrame(frame);
+      } else {
+        autoRunning = false;
+        els.autoBtn.disabled = false;
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  els.autoBtn.addEventListener("click", runAutoRep);
+
+  /* ---------- Theme toggle ---------- */
+  els.themeSwitch.addEventListener("change", function(){
+    var night = els.themeSwitch.checked;
+    document.documentElement.setAttribute("data-theme", night ? "night" : "day");
+    els.themeLabel.textContent = night ? "NIGHT" : "DAY";
+  });
+
+  /* ---------- Camera ---------- */
+  els.camToggle.addEventListener("click", function(){
+    if(els.viewfinder.classList.contains("active")){
+      var stream = els.cam.srcObject;
+      if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); }
+      els.cam.srcObject = null;
+      els.viewfinder.classList.remove("active");
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(function(stream){
+        els.cam.srcObject = stream;
+        els.viewfinder.classList.add("active");
+        pulseStep(1);
+      })
+      .catch(function(){
+        var p = els.viewfinder.querySelector(".cam-placeholder p");
+        if(p) p.textContent = "Camera access was denied or unavailable. Check your browser permissions and try again.";
+      });
+  });
+
+  /* ---------- Init ---------- */
+  buildGauge();
+  selectExercise("squat");
+})();
+</script>
+</body>
+</html>
